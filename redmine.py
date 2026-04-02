@@ -21,7 +21,7 @@ class Org():
 
     def sprints(self, project):
         sprints = self.redmine.getVersions(project)
-        print self._process_template("sprints.org", project=project, sprints=sprints)
+        print(self._process_template("sprints.org", project=project, sprints=sprints))
 
     def everything(self, project):
         sprints = self.redmine.getVersions(project)
@@ -36,7 +36,7 @@ class Org():
                     tasks.append(self.redmine.getIssue(child['id']))
                 issue.tasks = tasks
 
-        print self._process_template("everything.org", project=project, sprints=sprints)
+        print(self._process_template("everything.org", project=project, sprints=sprints))
 
     def everything_for_sprint(self, project, sprint_id):
         if sprint_id is None:
@@ -60,7 +60,7 @@ class Org():
             else:
                 issue.status['org_name'] = "DONE"
 
-        print self._process_template("everything_sprint.org", project=project, sprint=sprint)
+        print(self._process_template("everything_sprint.org", project=project, sprint=sprint))
 
     def time_sheet(self, project, sprint):
         if sprint is None:
@@ -83,11 +83,11 @@ class Org():
             raise Exception("sprint must be specified")
         issues = self.redmine.findIssues(get_all_info=False, project_id=args.redmine_project, include='journals',  sort="position",
                                          tracker_id=settings.TRACKER_SPRINT, fixed_version_id=sprint, status_id='*', limit=issues_per_page, offset=offset)
-        print self._process_template("issues.org", sprint=sprint, issues=issues)
+        print(self._process_template("issues.org", sprint=sprint, issues=issues))
 
     def issue(self, issue_id):
         issue = self.redmine.getIssue(issue_id)
-        print self._process_template("issue.org", issue=issue)
+        print(self._process_template("issue.org", issue=issue))
 
     def new_issue(self, project, sprint):
 
@@ -163,7 +163,7 @@ class Org():
             self.redmine.issueStatusCantReproduce(issue_id)
         else:
             raise Exception("Unknown status : " + status)
-        print "Issue status changed to " + status
+        print("Issue status changed to " + status)
 
     def _process_template(self, template_filename, **kwargs):
         f = open(os.path.join(self.template_folder, template_filename))
@@ -175,16 +175,16 @@ class Org():
 
     def _read_multiline_input(self, prompt):
         user_input = [] 
-        entry = raw_input(prompt + "\n(enter 'done' on its own line when done) \n\n") 
+        entry = input(prompt + "\n(enter 'done' on its own line when done) \n\n") 
         while entry != "done": 
             user_input.append(entry) 
-            entry = raw_input("") 
+            entry = input("") 
         user_input = '\n'.join(user_input) 
         return user_input
 
     def _read_argument(self, prompt, multi_line=False):
         if not multi_line:
-            return raw_input(prompt+": ")
+            return input(prompt+": ")
         else:
             return self._read_multiline_input(prompt)
             # t = tempfile.NamedTemporaryFile(delete=False)

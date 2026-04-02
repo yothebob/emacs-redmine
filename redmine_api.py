@@ -1,12 +1,12 @@
 #obtained and extensively modified from http://code.google.com/p/pyredminews
 
 
-import urllib
-import urllib2
+import urllib.request
+import urllib.parse
 from xml.dom import minidom, getDOMImplementation
 import xml.etree.ElementTree as ET
 import logging
-from StringIO import StringIO
+from io import StringIO
 import re,datetime
 from operator import itemgetter, attrgetter
 import settings
@@ -26,7 +26,7 @@ def parse_redmine_date(s):
 			hour, minute, second = time.split(":")
 			return datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
 		else:
-			return datetime.datetime(*map(int, re.split('[^\d]', s)[:-1]))
+			return datetime.datetime(*map(int, re.split(r'[^\d]', s)[:-1]))
 		
 	except:
 		raise
@@ -268,7 +268,7 @@ class Redmine:
 		self.issuesXML = {}
 		
 		if readonlytest:
-			print 'Redmine instance running in read only test mode.  No data will be written to the server.'
+			print('Redmine instance running in read only test mode.  No data will be written to the server.')
 		
 		self.__opener = None
 
@@ -282,19 +282,19 @@ class Redmine:
 		if( username and password ):
 			#realm = 'Redmine API'
 			# create a password manager
-			password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+			password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
 
 			password_mgr.add_password(None, url, username, password )
-			handler = urllib2.HTTPBasicAuthHandler( password_mgr )
+			handler = urllib.request.HTTPBasicAuthHandler( password_mgr )
 
 			# create "opener" (OpenerDirector instance)
-			self.__opener = urllib2.build_opener( handler )
+			self.__opener = urllib.request.build_opener( handler )
 
 			# set the opener when we fetch the URL
 			self.__opener.open( url )
 
 			# Install the opener.
-			urllib2.install_opener( self.__opener )
+			urllib.request.install_opener( self.__opener )
 			
 		else:
 			if not key:
@@ -317,12 +317,12 @@ class Redmine:
 		return _TimeEntry(self, eTree)
 
 	# extend the request to handle PUT command
-	class PUT_Request(urllib2.Request):
+	class PUT_Request(urllib.request.Request):
 		def get_method(self):
 			return 'PUT'
 
 	# extend the request to handle DELETE command
-	class DELETE_Request(urllib2.Request):
+	class DELETE_Request(urllib.request.Request):
 		def get_method(self):
 			return 'DELETE'
 	
@@ -340,7 +340,7 @@ class Redmine:
 		# encode any data
 		urldata = ''
 		if parms:
-			urldata = '?' + urllib.urlencode( parms )
+			urldata = '?' + urllib.parse.urlencode( parms )
 		
 		
 		fullUrl = self.__url + '/' + page
@@ -353,13 +353,13 @@ class Redmine:
 			
 		#debug
 		if self.debug:
-			print fullUrl + urldata
+			print(fullUrl + urldata)
 		
 		# Set up the request
 		if HTTPrequest:
 			request = HTTPrequest( fullUrl + urldata )
 		else:
-			request = urllib2.Request( fullUrl + urldata )
+			request = urllib.request.Request( fullUrl + urldata )
 
 		if self.key:
 			request.add_header('X-Redmine-API-Key', self.key)
@@ -367,9 +367,9 @@ class Redmine:
 		# get the data and return XML object
 		if XMLstr:
 			request.add_header('Content-Type', 'text/xml')
-			response = urllib2.urlopen( request, XMLstr )			
+			response = urllib.request.urlopen( request, XMLstr )			
 		else:
-			response = urllib2.urlopen( request )
+			response = urllib.request.urlopen( request )
 
 		return response
 	
@@ -391,7 +391,7 @@ class Redmine:
 	def post(self, page, objXML, parms=None ):
 		'''Posts an XML object to the server - used to make new Redmine items.  Returns an XML object.'''
 		if self.readonlytest:
-			print 'Redmine read only test: Pretending to create: ' + page
+			print('Redmine read only test: Pretending to create: ' + page)
 			return objXML
 		else:
 			return self.open( page, parms, objXML )
@@ -399,14 +399,14 @@ class Redmine:
 	def put(self, page, objXML, parms=None ):
 		'''Puts an XML object on the server - used to update Redmine items.  Returns nothing useful.'''
 		if self.readonlytest:
-			print 'Redmine read only test: Pretending to update: ' + page
+			print('Redmine read only test: Pretending to update: ' + page)
 		else:
 			return self.open( page, parms, objXML, HTTPrequest=self.PUT_Request )
 	
 	def delete(self, page ):
 		'''Deletes a given object on the server - used to remove items from Redmine.  Use carefully!'''
 		if self.readonlytest:
-			print 'Redmine read only test: Pretending to delete: ' + page
+			print('Redmine read only test: Pretending to delete: ' + page)
 		else:
 			return self.open( page, HTTPrequest=self.DELETE_Request )
 			
@@ -493,9 +493,9 @@ class Redmine:
 		newIssue = self.Issue( self.post( 'issues.xml', xmlStr ) )
 		return newIssue
 	
-	def updateIssueFromDict(self, ID, dict ):
+	def updateIssueFromDict(self, ID, **kwargs ):
 		'''updates an issue with the given ID using fields from the passed dictionary'''
-		xmlStr = self.dict2XML( 'issue', dict )
+		xmlStr = self.dict2XML( 'issue', kwargs )
 		self.put( 'issues/'+str(ID)+'.xml', xmlStr )
 
 	def deleteIssue(self, ID ):
@@ -505,20 +505,20 @@ class Redmine:
 		
 	def issueStatusNew(self, ID ):
 		'''close an issue by setting the status to self.ISSUE_STATUS_ID_CLOSED'''
-		self.updateIssueFromDict( ID, {'status_id':settings.ISSUE_STATUS_NEW} )
+		self.updateIssueFromDict( ID, status_id=settings.ISSUE_STATUS_NEW )
 		
 	def issueStatusDevDone(self, ID ):
 		'''close an issue by setting the status to self.ISSUE_STATUS_ID_RESOLVED'''
-		self.updateIssueFromDict( ID, {'status_id':settings.ISSUE_STATUS_DEV_DONE} )
+		self.updateIssueFromDict( ID, status_id=settings.ISSUE_STATUS_DEV_DONE )
 		
 	def issueStatusTested(self, ID ):
 		'''close an issue by setting the status to self.ISSUE_STATUS_ID_CLOSED'''
-		self.updateIssueFromDict( ID, {'status_id':settings.ISSUE_STATUS_TESTED} )
+		self.updateIssueFromDict( ID, status_id=settings.ISSUE_STATUS_TESTED )
 		
 	def issueStatusReopened(self, ID ):
 		'''close an issue by setting the status to self.ISSUE_STATUS_ID_RESOLVED'''
-		self.updateIssueFromDict( ID, {'status_id':settings.ISSUE_STATUS_REOPENED} )
+		self.updateIssueFromDict( ID, status_id=settings.ISSUE_STATUS_REOPENED )
 
 	def issueStatusCantReproduce(self, ID ):
 		'''close an issue by setting the status to self.ISSUE_STATUS_ID_CANT_REPRODUCE'''
-		self.updateIssueFromDict( ID, {'status_id':settings.ISSUE_STATUS_CANT_REPRODUCE} )
+		self.updateIssueFromDict( ID, status_id=settings.ISSUE_STATUS_CANT_REPRODUCE )

@@ -26,6 +26,16 @@ git clone this repo and then add to .emacs file like this:
     (add-to-list 'load-path "path/to/emacs-redmine")
     (require 'redmine)
 
+make pip venv and install req
+```
+python3 -m venv venv ; source venv/bin/activate ; pip install -r requirements.txt
+```
+
+Update path/to/emacs-redmine/redmine.py shebang as so (replacing with your path):
+```
+-#!/usr/bin/python
++#!/path/to/emacs-redmine/venv/bin/python3
+```
 Then add one or more functions to .emacs for each project you want to access, for example:
 
     (defun redmine-my-project ()
