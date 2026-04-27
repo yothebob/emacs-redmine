@@ -1,3 +1,4 @@
+;; -*- lexical-binding: t; -*-
 ;;; redmine.el --- Emacs interface to Redmine issue tracking system 
 
 
@@ -11,6 +12,7 @@
   :type 'string
   :group 'redmine)
 
+;; TODO: we need to support many project names and pick one
 (defcustom redmine-project-name ""
   "Redmine project name"
   :type 'string
@@ -30,29 +32,40 @@
 (defconst redmine-task-id-regex "^[^:]*:task\\([^:]*\\):.*$"
   "Regex for task id.")
 
+(defvar *API-REDMINE-STATUSES* '())
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Constant variables
-;; (defconst redmine-issue-id-regex "^[^m]*m\\([^\t]*\\).*$"
-;;   "Regex for issue id.")
-
-;;(defconst redmine-issue-id-regex-in-issue "^Issue \\([^ ]*-[^ ]*\\)"
-;; (defconst redmine-issue-id-regex-in-issue "^Issue \\(.*\\)"
-;;   "Regex for issue when showing it")
-;; 
-;; (defconst redmine-issue-guid-regex "^[_ ]+[^:]+: \\([^:\n]+\\) :.*$"
-;;   "Regex for issue guid.")
-;; 
-;; (defconst redmine-release-name-regex "^\\(\\)\\(.*\\)$"
-;;   "Regex for release id.")
-;; 
-;; (defconst redmine-feature-name-regex "^:Feature: \\(Version \\)?\\([^\n ]+\\) *.*$"
-;;   "Regex for feature id.")
-;; 
-;; (defconst redmine-issue-description-regex "^.*: (.*) \\(.*\\)$"
-;;   "Regex for issue description.")
-
 ;; Commands
+
+(global-set-key (kbd "C-c r i") 'redmine-get-timesheet-issue)
+(global-set-key (kbd "C-c r s") 'redmine-issue-status)
+;; (global-set-key (kbd "C-c r u") 'redmine-issue-update)
+(global-set-key (kbd "C-c r h") 'redmine-assigned-to-me)
+
+;; (global-set-key (kbd "C-c r a") 'ets-list-all-clockin-records)
+;; (global-set-key (kbd "C-c r b") 'ets-timesheet-make-branchname)
+;; (global-set-key (kbd "C-c r c") 'ets-timesheet-current-ticket-chili)
+
+
+
+;; TODO: we need a show open issues for a given project
+;; TODO: we need a show open issues assigned to me
+;; TODO: it would be nice to have a function to just update a ticket (by entered issue id)
+;; TODO: impl better UI and coloring UI
+
+(defun redmine-get-issue ()
+  (interactive)
+  (let ((issue-id (read-string "Ticket: ")))
+    (if issue-id (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t))))
+
+(defun redmine-get-timesheet-issue ()
+  (interactive)
+  (let* ((current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
+	 (ticket-number (gethash "ticket" current-ticket)))
+    (if ticket-number (redmine-call-process "issue" (concat "--issue " ticket-number) "pop" :orgmode t))))
+
+
 (defun redmine-show-sprints ()
   "show sprints"
   (interactive)
@@ -85,35 +98,39 @@
   (let ((issue-id nil))
     (setq issue-id (redmine-get-issue-id))
     (if issue-id
-	(redmine-call-process "issue" (concat "--issue " issue-id) "pop")
+	(redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t)
       (error "Issue id not found"))))
 
-(defun redmine-issue-status (new-status)
-  (let ((issue-id nil))
-    (setq issue-id (redmine-get-issue-id))
+
+(defun redmine-issue-status () ;; this is not a good name this is set-issue-status
+  "Update a ticket/issues status to a new-status."
+  (interactive)
+  (let* ((current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
+	 (issue-id (read-string "Ticket: " (gethash "ticket" current-ticket))) ;; TODO: update current buffer ticket/current clocked in ticket
+	 (new-status (completing-read "Status: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
     (if issue-id
-	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " new-status ) "switch")
+	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "switch")
       (error "Issue id not found"))))
 
-(defun redmine-issue-status-devdone ()
+(defun redmine-assigned-to-me ()
   (interactive)
-  (redmine-issue-status "devdone"))
+  (redmine-call-process "assigned-to-me" "" "switch"))
 
-(defun redmine-issue-status-cantreproduce ()
-  (interactive)
-  (redmine-issue-status "cantreproduce"))
 
-(defun redmine-issue-status-new ()
-  (interactive)
-  (redmine-issue-status "new"))
+;; (defun redmine-issue-status-reassign () ;; this is not a good name this is set-issue-status
+;;   "Update a ticket/issues status to a new-status."
+;;   (interactive)
+;;   (let ((issue-id (read-string "Ticket: ")) ;; TODO: update current buffer ticket/current clocked in ticket
+;; 	(new-status (completing-read "Issue: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
+;;     (if issue-id
+;; 	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "switch")
+;;       (error "Issue id not found"))))
 
-(defun redmine-issue-status-tested ()
-  (interactive)
-  (redmine-issue-status "tested"))
-
-(defun redmine-issue-status-reopened ()
-  (interactive)
-  (redmine-issue-status "reopened"))
+(defun redmine--statuses ()
+  "load in settings statuses."
+  (let ((status-buffer "*redmine-statuses*"))
+  (shell-command (concat redmine-program " --action statuses") status-buffer)
+  (eval-buffer status-buffer)))
 
 (defun redmine-add-issue ()
   (interactive)
@@ -368,15 +385,14 @@
 	  ))))
 
 (defun redmine-close-buffer ()
-  "Close redmine buffer."
+  "Bury redmine buffer."
   (interactive)
-  (quit-window))
+  (bury-buffer))
 
-(defun redmine-call-process (command &optional arg popup-flag prev-line-number)
+(cl-defun redmine-call-process (command &optional arg popup-flag &key (orgmode nil))
   "Call redmine process asynchronously according with sub-commands."
-  (let* ((buffer (get-buffer-create (concat "*redmine-" command "*")))
+  (let* ((buffer (get-buffer-create (format "*redmine-%s%s*" command (if orgmode "-orgmode" ""))))
          (proc (get-buffer-process buffer)))
-
     (if (and proc (eq (process-status proc) 'run))
         (when (y-or-n-p (format "A %s process is running; kill it?"
                                 (process-name proc)))
@@ -393,24 +409,27 @@
                            (redmine-build-command command arg))
 
     (cond ((or (eq major-mode 'redmine-mode)
-               (string= popup-flag "switch"))
+               (string= popup-flag "switch")) ;; TODO: popup-flag is not REALLY optional, this is broken
            (switch-to-buffer buffer))
           ((string= popup-flag "pop")
            (pop-to-buffer buffer))
           ((string= popup-flag "display")
            (display-buffer buffer))
-          (t
-           (set-buffer buffer)))
+          (t (set-buffer buffer)))
 
-    (setq redmine-prev-line-number prev-line-number)
+    ;; (setq redmine-prev-line-number prev-line-number)
     (set-process-sentinel
      (get-buffer-process buffer)
      '(lambda (process signal)
         (when (string= signal "finished\n")
           (with-current-buffer (process-buffer process)
-            (redmine-mode)
-            (goto-char (point-min))
-	    (and redmine-prev-line-number (goto-line redmine-prev-line-number)))))))))
+	    (message (buffer-name (current-buffer)))
+	    (if (cl-search "orgmode" (buffer-name (current-buffer)))
+		(org-mode)
+	      (redmine-mode))
+	    (goto-char (point-min))
+	    ;; (and redmine-prev-line-number (goto-line redmine-prev-line-number))
+	    )))))))
 
 (defvar redmine-last-visited-issue-directory nil)
 
@@ -438,13 +457,8 @@
 ;; (define-key redmine-mode-map "s"    'redmine-show)
 (define-key redmine-mode-map "A"    'redmine-add-issue)
 (define-key redmine-mode-map "e"    'redmine-edit-issue)
-(define-key redmine-mode-map "d"    'redmine-delete-issue)
+;; (define-key redmine-mode-map "d"    'redmine-delete-issue)
 (define-key redmine-mode-map "j"    'redmine-add-issue-journal)
-(define-key redmine-mode-map (kbd "C-c n") 'redmine-issue-status-new)
-(define-key redmine-mode-map (kbd "C-c d") 'redmine-issue-status-devdone)
-(define-key redmine-mode-map (kbd "C-c a") 'redmine-issue-status-cantreproduce)
-(define-key redmine-mode-map (kbd "C-c r") 'redmine-issue-status-reopened)
-(define-key redmine-mode-map (kbd "C-c t") 'redmine-issue-status-tested)
 
 (define-key redmine-mode-map "g"    'redmine-reload)
 ;; (define-key redmine-mode-map "d"    'redmine-remove)
@@ -598,34 +612,3 @@
 
 (provide 'redmine)
 ;;; redmine.el ends here
-
-
-;;; Allow to copy links from org mode release buffer
-;; (org-add-link-type "redmine" 'org-redmine-open)
-;; (add-hook 'org-store-link-functions 'org-redmine-store-link)
-;; 
-;; (defun org-redmine-open (link)
-;;   (when (string-match "\\(.*\\):\\([0-9]+\\)$"  link)
-;;     (let* ((path (match-string 1 link))
-;;            (page (string-to-number (match-string 2 link))))
-;;       (org-open-file path 1) ;; let org-mode open the file (in-emacs = 1)
-;;       ;; so that org-link-frame-setup is respected
-;;       (doc-view-goto-page page)
-;;       )))
-;; 
-;; (defun org-redmine-store-link ()
-;;   "Store a link to a docview buffer"
-;;   (when (eq major-mode 'redmine-mode)
-;;     ;; This buffer is in redmine mode
-;;     (let* ((path redmine-last-visited-issue-directory)
-;;            (issue-id (trim-whitespace (redmine-extract-thing-at-point redmine-issue-id-regex 1)))
-;; 	   (issue-description (redmine-extract-thing-at-point redmine-issue-description-regex 1))
-;;            (link (concat "elisp:(gtpmenu-redmine-goto-issue \"" path "\" \"" issue-id "\")"))
-;;            (description ""))
-;;       (org-store-link-props
-;;        :type "redmine"
-;;        :description (concat issue-id " " issue-description)
-;;        :link link))))
-;; 
-;;;
-

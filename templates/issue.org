@@ -1,20 +1,36 @@
 :issue${issue.id}:
 
-Subject: ${issue.subject}
-Status: ${issue.status.name}
+* Subject: ${issue.subject}
+
+_Added By:_ *${issue.author.name}*
+_Status:_ *${issue.status.name}*
+_Priority:_ *${issue.priority.name}*
+_Assignee:_ *${issue.assigned_to.name}*
+_Target Version:_ *${issue.fixed_version.name}*
+_Branch: ${issue.custom.Branch}_
+
+_Description:_
 
 ${issue.description}
 
-Journals
+{% if issue.attachments %}
+** Files
+{% for attachment in issue.attachments %}
+[[${attachment.url}]] ${attachment.author} ${attachment.created_on}
+{% end %}
+{% end %}
+** Journals
 --------
 {% for journal in issue.journals %}
-${journal.created_on} : 
-   ${journal.notes}
+*** Updated By ${journal.author.name} ${journal.created_on} : #${journal.note_number}
+{% for detail in journal.details %}/${detail.name} ${detail.old} To ${detail.new}/
+{% end %}
+  ${journal.notes}
 {% end %}
 
-Tasks
+** Tasks
 -----
 {% for task in issue.children %}
-:task${task.id}: ${task.subject}
+*** :task${task.id}: ${task.subject}
 {% end %}
 
