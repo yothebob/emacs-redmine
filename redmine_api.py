@@ -206,7 +206,9 @@ class _Issue:
         if self.root.find("custom_fields") is not None:
             for field in self.root.find("custom_fields"):
                 self.custom[field.attrib["name"]] = field.text
-
+                if field.attrib["name"] == "Branch":
+                    self.custom[field.attrib["name"]] = field.find("value").text
+        
         if self.root.find("relations") is not None:
             for field in self.root.find("relations"):
                 self.relations[field.attrib["issue_id"]] = field.attrib
@@ -251,11 +253,11 @@ class _Issue:
                         if detail["property"] == "attachment":
                             detail["name"] = f"[[{settings.URL}/attachments/{detail['name']}]]"
                         if detail["name"] == "status_id":
-                            detail["old"] = self.statuses[int(detail["old"])]
-                            detail["new"] = self.statuses[int(detail["new"])]
+                            detail["old"] = self.statuses[int(detail.get("old", 0) or 0)]
+                            detail["new"] = self.statuses[int(detail.get("new", 0) or 0)]
                         if detail["name"] == "assigned_to_id":
-                            detail["old"] = self.users.get(int(detail["old"]), detail["old"])
-                            detail["new"] = self.users.get(int(detail["new"]), detail["new"])
+                            detail["old"] = self.users.get(int(detail.get("old", 0) or 0), detail.get("old", 0))
+                            detail["new"] = self.users.get(int(detail.get("new", 0) or 0), detail.get("new", 0))
                             
                         details.append(detail)
                     j_entry["details"] = details
@@ -488,8 +490,8 @@ class Redmine:
 
         root = ET.Element(tag)
         for key, val in dict.items():
-            if key == "custom_fields":
-                custom_fields_el = ET.SubElement(root, "custom_fields")
+            if key == "custom_field_values":
+                custom_fields_el = ET.SubElement(root, "custom_field_values")
                 custom_fields_el.set("type", "array")
                 for cf_id, cf_value in val.items():
                     cf_el = ET.SubElement(custom_fields_el, "custom_field")
@@ -594,23 +596,3 @@ class Redmine:
         Note that the proper method of finishing an issue is to update it to a closed state.
         """
         self.delete("issues/" + str(ID) + ".xml")
-
-    def issueStatusNew(self, ID):
-        """close an issue by setting the status to self.ISSUE_STATUS_ID_CLOSED"""
-        self.updateIssueFromDict(ID, status_id=settings.ISSUE_STATUS_NEW)
-
-    def issueStatusDevDone(self, ID):
-        """close an issue by setting the status to self.ISSUE_STATUS_ID_RESOLVED"""
-        self.updateIssueFromDict(ID, status_id=settings.ISSUE_STATUS_DEV_DONE)
-
-    def issueStatusTested(self, ID):
-        """close an issue by setting the status to self.ISSUE_STATUS_ID_CLOSED"""
-        self.updateIssueFromDict(ID, status_id=settings.ISSUE_STATUS_TESTED)
-
-    def issueStatusReopened(self, ID):
-        """close an issue by setting the status to self.ISSUE_STATUS_ID_RESOLVED"""
-        self.updateIssueFromDict(ID, status_id=settings.ISSUE_STATUS_REOPENED)
-
-    def issueStatusCantReproduce(self, ID):
-        """close an issue by setting the status to self.ISSUE_STATUS_ID_CANT_REPRODUCE"""
-        self.updateIssueFromDict(ID, status_id=settings.ISSUE_STATUS_CANT_REPRODUCE)

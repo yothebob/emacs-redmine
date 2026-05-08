@@ -1,5 +1,10 @@
 :issue${issue.id}:
 
+[[elisp:(ets-timesheet-clock-in-ticket "${issue.id}")][Clock into ${issue.id}]]
+[[elisp:(redmine-issue-status "${issue.id}")][Change Status]]
+[[elisp:(redmine-add-issue-journal "${issue.id}")][Add Note (Update)]]
+[[elisp:(redmine-get-issue "${issue.id}")][Refresh]]
+[[elisp:(redmine-assigned-to-me)][Go Home]]
 * Subject: ${issue.subject}
 
 _Added By:_ *${issue.author.name}*

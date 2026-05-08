@@ -1,14 +1,4 @@
 Issues:
-(list of keyboard shortcuts at the end of this buffer)
-
-{% for i in issues %}
-  :issue${i.id}: (${i.status.name}) ${i.subject} {% end %}
-
-
----------------------------
-Shortcut Keys:
-  g : refresh
-  2 : view page 2 (if there are more than 100 issues)
-  s : show issue information
-  e : edit issue
-  C-c r s : update ticket status
+| Ticket # | Status | Subject |
+|----------+--------+---------|{% for i in issues %}
+| [[elisp:(redmine-get-issue "${i.id}")][${i.id}]] | ${i.status.name}  | ${i.subject}  |{% end %}

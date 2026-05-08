@@ -2,4 +2,5 @@
 *#
 venv
 local_settings.py
+settings.py
 *~

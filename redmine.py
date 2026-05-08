@@ -25,6 +25,11 @@ class Org:
         print(res)
         return res
 
+    def get_setting_users(self, **kwargs):
+        res = "(setq *ASSIGNEE* '("+ " ".join([f"( \"{name}\" . {_id})" for _id, name in settings.USERS.items()]) + "))"
+        print(res)
+        return res
+
     def test_function(self, **kwargs):
         print("kwargs", kwargs)
         return "DONE"
@@ -266,11 +271,19 @@ class Org:
             raise Exception("issue must be specified")
 
         args = {}
-        self._set_argument_or_ignore(
-            args, "notes", prompt="Notes (leave blank to ignore)", multi_line=True
-        )
+        args["notes"] = kwargs["note"]
+        if kwargs["status"]:
+            if kwargs["status"] not in settings.STATUSES.values():
+                raise Exception(f"Status must be in {', '.join(settings.STATUSES.values())}")
+            args["status_id"] = settings.STATUSES_REVERSED[kwargs["status"]]
 
-        self.redmine.updateIssueFromDict(kwargs["issue"], args)
+        if kwargs["branch"]:
+            args["branch"] = kwargs["custom_fields"] = {"3": kwargs["branch"]}
+        if kwargs["assignee"]:    
+            if kwargs["assignee"] not in settings.USERS.values():
+                raise Exception(f"Status must be in {', '.join(settings.USERS.values())}")
+            args["assigned_to_id"] = settings.USERS_REVERSED[kwargs["assignee"]]
+        self.redmine.updateIssueFromDict(kwargs["issue"], **args)
         print("Issue journal entry created for %s" % str(kwargs["issue"]))
 
 
@@ -337,6 +350,30 @@ if __name__ == "__main__":
         default=None,
         help="The status name, used for some actions. One of new, devdone, tested, reopened",
     )
+    parser.add_argument(
+        "--assignee",
+        dest="assignee",
+        type=str,
+        required=False,
+        default=None,
+        help="to assign to, not their id but their name",
+    )
+    parser.add_argument(
+        "--note",
+        dest="note",
+        type=str,
+        required=False,
+        default=None,
+        help="journal entry",
+    )
+    parser.add_argument(
+        "--branch",
+        dest="branch",
+        type=str,
+        required=False,
+        default=None,
+        help="git branch",
+    )
     args = parser.parse_args()
 
     redmine = Redmine(url=args.redmine_url, key=args.redmine_login_key, debug=True)
@@ -347,6 +384,7 @@ if __name__ == "__main__":
         "test" : org.test_function,
         "issues" : org.issues,
         "statuses" : org.get_setting_statuses,
+        "users" : org.get_setting_users,
         "everything" : org.everything,
         "everything-sprint" : org.everything_for_sprint,
         "issue" : org.issue,

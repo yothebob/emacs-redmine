@@ -33,6 +33,7 @@
   "Regex for task id.")
 
 (defvar *API-REDMINE-STATUSES* '())
+(defvar *ASSIGNEE* '())
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -54,10 +55,9 @@
 ;; TODO: it would be nice to have a function to just update a ticket (by entered issue id)
 ;; TODO: impl better UI and coloring UI
 
-(defun redmine-get-issue ()
-  (interactive)
-  (let ((issue-id (read-string "Ticket: ")))
-    (if issue-id (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t))))
+(defun redmine-get-issue (issue-id)
+  (interactive "MTicket: ")
+    (if issue-id (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t)))
 
 (defun redmine-get-timesheet-issue ()
   (interactive)
@@ -102,35 +102,42 @@
       (error "Issue id not found"))))
 
 
-(defun redmine-issue-status () ;; this is not a good name this is set-issue-status
+(defun redmine-issue-status (issue-id);; this is not a good name this is set-issue-status
   "Update a ticket/issues status to a new-status."
-  (interactive)
-  (let* ((current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
-	 (issue-id (read-string "Ticket: " (gethash "ticket" current-ticket))) ;; TODO: update current buffer ticket/current clocked in ticket
-	 (new-status (completing-read "Status: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
+  (interactive "MTicket: ")
+  (let* ((new-status (completing-read "Status: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
     (if issue-id
 	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "switch")
       (error "Issue id not found"))))
 
 (defun redmine-assigned-to-me ()
   (interactive)
-  (redmine-call-process "assigned-to-me" "" "switch"))
+  (redmine-call-process "assigned-to-me" "" "switch" :orgmode t))
 
-
-;; (defun redmine-issue-status-reassign () ;; this is not a good name this is set-issue-status
-;;   "Update a ticket/issues status to a new-status."
-;;   (interactive)
-;;   (let ((issue-id (read-string "Ticket: ")) ;; TODO: update current buffer ticket/current clocked in ticket
-;; 	(new-status (completing-read "Issue: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
-;;     (if issue-id
-;; 	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "switch")
-;;       (error "Issue id not found"))))
+(defun redmine-add-issue-journal (issue-id)
+  (interactive "MTicket: ")
+  (let* ((note (read-string "Note: "))
+	(new-status (completing-read "Status: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*)))
+	(new-assignee (completing-read "Assignee: " (mapcar '(lambda (x) (nth 0 x)) *ASSIGNEE*)))
+	(branch (read-string "Branch: ")))
+    (if issue-id
+	(redmine-call-process "add-issue-journal"
+			      (concat "--issue " issue-id " --note " (format "%S" note) " --status " (format "%S" new-status) " --branch " (format "%S" branch) " --assignee " (format "%S" new-assignee)) "pop")
+      (error "Issue id not found"))))
 
 (defun redmine--statuses ()
   "load in settings statuses."
   (let ((status-buffer "*redmine-statuses*"))
   (shell-command (concat redmine-program " --action statuses") status-buffer)
   (eval-buffer status-buffer)))
+(redmine--statuses)
+
+(defun redmine--users ()
+  "load in settings statuses."
+  (let ((users-buffer "*redmine-users*"))
+  (shell-command (concat redmine-program " --action users") users-buffer)
+  (eval-buffer users-buffer)))
+(redmine--users)
 
 (defun redmine-add-issue ()
   (interactive)
@@ -152,13 +159,6 @@
 	(redmine-call-process "delete-issue" (concat "--issue " issue-id) "pop")
       (error "Issue id not found"))))
 
-(defun redmine-add-issue-journal ()
-  (interactive)
-  (let ((issue-id nil))
-    (setq issue-id (redmine-get-issue-id))
-    (if issue-id
-	(redmine-call-process "add-issue-journal" (concat "--issue " issue-id) "pop")
-      (error "Issue id not found"))))
 
 (defun redmine-everything ()
   (interactive)
@@ -413,6 +413,18 @@
            (switch-to-buffer buffer))
           ((string= popup-flag "pop")
            (pop-to-buffer buffer))
+          ((string= popup-flag "vertical")
+	   (pop-to-buffer buffer
+               (lambda (buf alist)
+                 (display-buffer-reuse-window
+                  buf alist
+                  '((display-buffer-in-side-window . ((side . right))))))))
+          ((string= popup-flag "horizontal")
+	   (pop-to-buffer buffer
+               (lambda (buf alist)
+                 (display-buffer-reuse-window
+                  buf alist
+                  '((display-buffer-below-selected . nil))))))
           ((string= popup-flag "display")
            (display-buffer buffer))
           (t (set-buffer buffer)))
@@ -425,7 +437,7 @@
           (with-current-buffer (process-buffer process)
 	    (message (buffer-name (current-buffer)))
 	    (if (cl-search "orgmode" (buffer-name (current-buffer)))
-		(org-mode)
+		(progn (org-mode) (visual-line-mode))
 	      (redmine-mode))
 	    (goto-char (point-min))
 	    ;; (and redmine-prev-line-number (goto-line redmine-prev-line-number))
