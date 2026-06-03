@@ -1,6 +1,6 @@
 # obtained and extensively modified from http://code.google.com/p/pyredminews
 
-
+import requests
 import urllib.request
 import urllib.parse
 from xml.dom import minidom, getDOMImplementation
@@ -10,6 +10,7 @@ from io import StringIO
 import re, datetime
 from operator import itemgetter, attrgetter
 import settings
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ class _Issue:
         self.statuses = settings.STATUSES
         self.users = settings.USERS
         try:
-            self.estimated_hours = float(self.root.find("estimated_hours").text)
+            self.estimated_hours = float(self.root.find("estimated_hours").text) or float(self.root.find("total_estimated_hours").text)
         except:
             pass
 
@@ -327,7 +328,7 @@ class Redmine:
         key=None,
         username=None,
         password=None,
-        debug=False,
+        debug=True,
         readonlytest=False,
         project_name=None,
     ):
@@ -432,6 +433,7 @@ class Redmine:
             print(fullUrl, "data: ", urldata)
 
         # Set up the request
+        print(fullUrl + urldata)
         if HTTPrequest:
             request = HTTPrequest(fullUrl + urldata)
         else:
@@ -455,8 +457,12 @@ class Redmine:
         try:
             etree = ET.ElementTree()
             etree.parse(response)
+            # pretty = ""
+            # soup = BeautifulSoup(response, "html.parser")
+            # print(soup.prettify())
             return etree
         except:
+            print(response.read())
             return response.read()
 
     def get(self, page, parms=None):
@@ -494,10 +500,13 @@ class Redmine:
                 custom_fields_el = ET.SubElement(root, "custom_field_values")
                 custom_fields_el.set("type", "array")
                 for cf_id, cf_value in val.items():
-                    cf_el = ET.SubElement(custom_fields_el, "custom_field")
-                    cf_el.set("id", str(cf_id))
-                    cf_value_el = ET.SubElement(cf_el, "value")
-                    cf_value_el.text = str(cf_value)
+                    if cf_value != "":
+                        cf_el = ET.SubElement(custom_fields_el, "custom_field")
+                        cf_el.set("id", str(cf_id))
+                        if cf_id == "3":
+                            cf_el.set("name", "Branch")
+                        cf_value_el = ET.SubElement(cf_el, "value")
+                        cf_value_el.text = str(cf_value)
             else:
                 ET.SubElement(root, str(key)).text = str(val)
 
@@ -589,7 +598,37 @@ class Redmine:
     def updateIssueFromDict(self, ID, **kwargs):
         """updates an issue with the given ID using fields from the passed dictionary"""
         xmlStr = self.dict2XML("issue", kwargs)
+        print(xmlStr)
+        print("putting ", "issues/" + str(ID) + ".xml", xmlStr)
         self.put("issues/" + str(ID) + ".xml", xmlStr)
+
+    def update_issue_json(self, ID, dict_json):
+        """updates an issue with the given ID using fields from the passed dictionary"""
+        page = "issues/" + str(ID) + ".xml"
+        parms = {}
+        headers = {"content-type": "application/json"}
+        if self.key:
+            parms["key"] = self.key
+        urldata = ""
+        if parms:
+            urldata = "?" + urllib.parse.urlencode(parms)
+
+        fullUrl = self.__url + "/" + page
+        request_url = fullUrl + urldata
+
+        logger.debug("connecting to redmine using: %s" % fullUrl)
+
+        if self.debug:
+            print(fullUrl, "data: ", urldata)
+
+        if self.key:
+            headers["X-Redmine-API-Key"] = self.key
+        print(request_url)
+        print(dict_json)
+        r = requests.put(request_url, data=dict_json)
+        print(r.status_code)
+        print(r.text)
+        # self.put("issues/" + str(ID) + ".xml", xmlStr)
 
     def deleteIssue(self, ID):
         """delete an issue with the given ID.  This can't be undone - use carefully!

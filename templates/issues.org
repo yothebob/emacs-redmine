@@ -1,4 +1,8 @@
 Issues:
-| Ticket # | Status | Subject |
-|----------+--------+---------|{% for i in issues %}
-| [[elisp:(redmine-get-issue "${i.id}")][${i.id}]] | ${i.status.name}  | ${i.subject}  |{% end %}
+| Ticket #        | Status           | Subject      |                    |           |
+|-----------------+------------------+--------------+--------------------+-----------|{% for i in issues %}
+| ${i.id} [[elisp:(redmine-get-issue "${i.id}")][${i.id}]] | ${i.status.name} | ${i.subject} | [[elisp:(ets-timesheet-clock-in-ticket "${i.id}")][Clock into ${i.id}]] | {% end %}
+
+
+[[elisp:(redmine-assigned-to-me)][Refresh]]
+

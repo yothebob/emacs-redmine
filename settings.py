@@ -15,4 +15,3 @@ TRACKER_SPRINT = TRACKER_FEATURE = 2
 TRACKER_TASK = TRACKER_SUPPORT = 3
 
 TRACKERS = {"bug": TRACKER_BUG, "feature": TRACKER_FEATURE, "task": TRACKER_TASK}
-from .local_settings import *

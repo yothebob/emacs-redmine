@@ -278,11 +278,13 @@ class Org:
             args["status_id"] = settings.STATUSES_REVERSED[kwargs["status"]]
 
         if kwargs["branch"]:
-            args["branch"] = kwargs["custom_fields"] = {"3": kwargs["branch"]}
+            args["custom_field_values"] = {"0": "","1": "","2": "", "3": kwargs["branch"]}
         if kwargs["assignee"]:    
             if kwargs["assignee"] not in settings.USERS.values():
                 raise Exception(f"Status must be in {', '.join(settings.USERS.values())}")
             args["assigned_to_id"] = settings.USERS_REVERSED[kwargs["assignee"]]
+        print(kwargs["issue"], args)
+        # self.redmine.update_issue_json(kwargs["issue"], args)
         self.redmine.updateIssueFromDict(kwargs["issue"], **args)
         print("Issue journal entry created for %s" % str(kwargs["issue"]))
 

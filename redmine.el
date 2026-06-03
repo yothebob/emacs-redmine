@@ -39,10 +39,11 @@
 
 ;; Commands
 
-(global-set-key (kbd "C-c r i") 'redmine-get-timesheet-issue)
+(global-set-key (kbd "C-c r i") 'redmine-get-issue)
 (global-set-key (kbd "C-c r s") 'redmine-issue-status)
 ;; (global-set-key (kbd "C-c r u") 'redmine-issue-update)
 (global-set-key (kbd "C-c r h") 'redmine-assigned-to-me)
+(setq org-startup-align-all-tables t)
 
 ;; (global-set-key (kbd "C-c r a") 'ets-list-all-clockin-records)
 ;; (global-set-key (kbd "C-c r b") 'ets-timesheet-make-branchname)
@@ -55,9 +56,13 @@
 ;; TODO: it would be nice to have a function to just update a ticket (by entered issue id)
 ;; TODO: impl better UI and coloring UI
 
-(defun redmine-get-issue (issue-id)
-  (interactive "MTicket: ")
-    (if issue-id (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t)))
+(defun redmine-get-issue (&optional issue-id)
+  (interactive)
+  (if (not issue-id)
+      (let* ((current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
+	     (issue-id (read-string "Ticket: " (gethash "ticket" current-ticket))))
+	(redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t))
+    (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t)))
 
 (defun redmine-get-timesheet-issue ()
   (interactive)
