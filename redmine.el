@@ -396,7 +396,7 @@
 
 (cl-defun redmine-call-process (command &optional arg popup-flag &key (orgmode nil))
   "Call redmine process asynchronously according with sub-commands."
-  (let* ((buffer (get-buffer-create (format "*redmine-%s%s*" command (if orgmode "-orgmode" ""))))
+  (let* ((buffer (get-buffer-create (format "*redmine-%s%s%s*" command (if orgmode "-orgmode" "") (if orgmode arg ""))))
          (proc (get-buffer-process buffer)))
     (if (and proc (eq (process-status proc) 'run))
         (when (y-or-n-p (format "A %s process is running; kill it?"

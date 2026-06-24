@@ -1,5 +1,7 @@
 # obtained and extensively modified from http://code.google.com/p/pyredminews
 
+import logging
+import json
 import requests
 import urllib.request
 import urllib.parse
@@ -13,7 +15,13 @@ import settings
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
-
+logging.basicConfig(
+    level=logging.DEBUG,
+    handlers=[
+        logging.FileHandler("logs/redmine_api.log"),
+        logging.StreamHandler()
+    ]
+)
 
 def parse_redmine_date(s):
     '''s is something like "2008-09-03T20:56:35.450686Z"'''
@@ -347,7 +355,7 @@ class Redmine:
         self.issuesXML = {}
 
         if readonlytest:
-            print(
+            logger.info(
                 "Redmine instance running in read only test mode.  No data will be written to the server."
             )
 
@@ -430,10 +438,11 @@ class Redmine:
 
         # debug
         if self.debug:
-            print(fullUrl, "data: ", urldata)
+            logger.info(fullUrl.replace(".xml", ""))
+            # logger.info(fullUrl, "data: ", urldata)
 
         # Set up the request
-        print(fullUrl + urldata)
+        logger.info(fullUrl + urldata)
         if HTTPrequest:
             request = HTTPrequest(fullUrl + urldata)
         else:
@@ -459,10 +468,10 @@ class Redmine:
             etree.parse(response)
             # pretty = ""
             # soup = BeautifulSoup(response, "html.parser")
-            # print(soup.prettify())
+            # logger.info(soup.prettify())
             return etree
         except:
-            print(response.read())
+            logger.info(response.read())
             return response.read()
 
     def get(self, page, parms=None):
@@ -472,7 +481,7 @@ class Redmine:
     def post(self, page, objXML, parms=None):
         """Posts an XML object to the server - used to make new Redmine items.  Returns an XML object."""
         if self.readonlytest:
-            print("Redmine read only test: Pretending to create: " + page)
+            logger.info("Redmine read only test: Pretending to create: " + page)
             return objXML
         else:
             return self.open(page, parms, objXML)
@@ -480,14 +489,14 @@ class Redmine:
     def put(self, page, objXML, parms=None):
         """Puts an XML object on the server - used to update Redmine items.  Returns nothing useful."""
         if self.readonlytest:
-            print("Redmine read only test: Pretending to update: " + page)
+            logger.info("Redmine read only test: Pretending to update: " + page)
         else:
             return self.open(page, parms, objXML, HTTPrequest=self.PUT_Request)
 
     def delete(self, page):
         """Deletes a given object on the server - used to remove items from Redmine.  Use carefully!"""
         if self.readonlytest:
-            print("Redmine read only test: Pretending to delete: " + page)
+            logger.info("Redmine read only test: Pretending to delete: " + page)
         else:
             return self.open(page, HTTPrequest=self.DELETE_Request)
 
@@ -595,40 +604,45 @@ class Redmine:
         newIssue = self.Issue(self.post("issues.xml", xmlStr))
         return newIssue
 
+    def update_issue_with_json(self, ID, **kwargs):
+        """Copy of updateIssueFromDict but using json"""
+        branch = kwargs.pop("branch", None)
+        request_json = {"issue": kwargs}
+        logger.info("request_json", request_json)
+        page = "issues/" + str(ID) + ".json"
+        fullUrl = self.__url + page + f"?key={self.key}"
+        logger.info(fullUrl)
+        if not self.key:
+            raise Exception("You need an API key to update an issue.")
+        logger.info("Submitting put to issues...")
+        res = requests.put(fullUrl, json=request_json, headers={
+            "X-Redmine-API-Key": self.key,
+            "Content-Type": 'application/json',
+            "Accept": 'application/json',
+        })
+        logger.info(res.status_code)
+        logger.info(res.text)
+
+        
     def updateIssueFromDict(self, ID, **kwargs):
         """updates an issue with the given ID using fields from the passed dictionary"""
-        xmlStr = self.dict2XML("issue", kwargs)
-        print(xmlStr)
-        print("putting ", "issues/" + str(ID) + ".xml", xmlStr)
+        branch = kwargs.pop("branch", None)
+        if branch:
+            custom = kwargs.pop("custom_fields")
+            branch_xml = f"""<custom_fields type="array"><custom_field id="3"><value>{branch}</value></custom_field></custom_fields>"""
+            logger.info(branch_xml)
+            logger.info("kwargs", kwargs)
+            xmlStr = self.dict2XML("issue", kwargs)
+            xmlStr = xmlStr.decode("utf8")
+            xmlStr = xmlStr.replace("</issue>", branch_xml + "</issue>")
+            logger.info(xmlStr)
+            xmlStr = bytes(xmlStr, "utf-8")
+            logger.info(xmlStr)
+            logger.info(type(xmlStr))
+        else:
+            xmlStr = self.dict2XML("issue", kwargs)
+        logger.info("putting ", "issues/" + str(ID) + ".xml", xmlStr)
         self.put("issues/" + str(ID) + ".xml", xmlStr)
-
-    def update_issue_json(self, ID, dict_json):
-        """updates an issue with the given ID using fields from the passed dictionary"""
-        page = "issues/" + str(ID) + ".xml"
-        parms = {}
-        headers = {"content-type": "application/json"}
-        if self.key:
-            parms["key"] = self.key
-        urldata = ""
-        if parms:
-            urldata = "?" + urllib.parse.urlencode(parms)
-
-        fullUrl = self.__url + "/" + page
-        request_url = fullUrl + urldata
-
-        logger.debug("connecting to redmine using: %s" % fullUrl)
-
-        if self.debug:
-            print(fullUrl, "data: ", urldata)
-
-        if self.key:
-            headers["X-Redmine-API-Key"] = self.key
-        print(request_url)
-        print(dict_json)
-        r = requests.put(request_url, data=dict_json)
-        print(r.status_code)
-        print(r.text)
-        # self.put("issues/" + str(ID) + ".xml", xmlStr)
 
     def deleteIssue(self, ID):
         """delete an issue with the given ID.  This can't be undone - use carefully!

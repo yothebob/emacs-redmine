@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-
+import logging
 import os
 import sys
 import tempfile
@@ -9,6 +9,15 @@ import settings
 from redmine_api import *
 from genshi.template import NewTextTemplate
 import csv
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    handlers=[
+        logging.FileHandler("logs/redmine.log"),
+        logging.StreamHandler()
+    ]
+)
 
 
 class Org:
@@ -22,22 +31,22 @@ class Org:
 
     def get_setting_statuses(self, **kwargs):
         res = "(setq *API-REDMINE-STATUSES* '("+ " ".join([f"( \"{name}\" . {_id})" for _id, name in settings.STATUSES.items()]) + "))"
-        print(res)
+        logger.info(res)
         return res
 
     def get_setting_users(self, **kwargs):
         res = "(setq *ASSIGNEE* '("+ " ".join([f"( \"{name}\" . {_id})" for _id, name in settings.USERS.items()]) + "))"
-        print(res)
+        logger.info(res)
         return res
 
     def test_function(self, **kwargs):
-        print("kwargs", kwargs)
+        logger.info("kwargs", kwargs)
         return "DONE"
     
         
     def sprints(self, **kwargs):
         sprints = self.redmine.getVersions(kwargs["project"])
-        print(self._process_template("sprints.org", project=kwargs["project"], sprints=sprints))
+        logger.info(self._process_template("sprints.org", project=kwargs["project"], sprints=sprints))
 
     def everything(self, **kwargs):
         sprints = self.redmine.getVersions(kwargs["project"])
@@ -60,7 +69,7 @@ class Org:
                     tasks.append(self.redmine.getIssue(child["id"]))
                 issue.tasks = tasks
 
-        print(
+        logger.info(
             self._process_template("everything.org", project=kwargs["project"], sprints=sprints)
         )
 
@@ -94,7 +103,7 @@ class Org:
             else:
                 issue.status["org_name"] = "DONE"
 
-        print(
+        logger.info(
             self._process_template(
                 "everything_sprint.org", project=kwargs["project"], sprint=sprint
             )
@@ -110,8 +119,8 @@ class Org:
     #     filename = "/home/gtp/temp/timesheet.csv"
     #     f = open(os.path.join(filename), "w")
     #     f.write(timesheet_content)
-    #     print("\nWritten to %s\n\n" % filename)
-    #     print(timesheet_content)
+    #     logger.info("\nWritten to %s\n\n" % filename)
+    #     logger.info(timesheet_content)
 
     def issues(self, **kwargs):
         """get_all_info=True is much slower since it makes an
@@ -132,7 +141,7 @@ class Org:
             limit=issues_per_page,
             offset=offset,
         )
-        print(self._process_template("issues.org", sprint=kwargs["sprint"], issues=issues))
+        logger.info(self._process_template("issues.org", sprint=kwargs["sprint"], issues=issues))
 
     def assigned_to_me(self, **kwargs):
         issues_per_page = 100
@@ -143,13 +152,13 @@ class Org:
             status_id="o",
             limit=issues_per_page,
         )
-        print(self._process_template("issues.org", sprint=kwargs["sprint"], issues=issues))
+        logger.info(self._process_template("issues.org", sprint=kwargs["sprint"], issues=issues))
 
 
         
     def issue(self, **kwargs):
         issue = self.redmine.getIssue(kwargs["issue"])
-        print(self._process_template("issue.org", issue=issue))
+        logger.info(self._process_template("issue.org", issue=issue))
 
     def new_issue(self, **kwargs):
 
@@ -166,7 +175,7 @@ class Org:
             subject=subject,
             description=description,
         )
-        print("Issue created")
+        logger.info("Issue created")
 
     def edit_issue(self, **kwargs):
         if kwargs["issue"] is None:
@@ -174,20 +183,20 @@ class Org:
 
         args = {}
         issue = self.redmine.getIssue(kwargs["issue"])
-        print("")
-        print("---------------------------------------")
-        print("Current subject is : \n %s" % issue.subject)
-        print("---------------------------------------")
-        print("")
+        logger.info("")
+        logger.info("---------------------------------------")
+        logger.info("Current subject is : \n %s" % issue.subject)
+        logger.info("---------------------------------------")
+        logger.info("")
         self._set_argument_or_ignore(
             args, "subject", prompt="Subject (leave blank to ignore)"
         )
 
-        print("")
-        print("---------------------------------------")
-        print("Current description is :\n %s" % issue.description)
-        print("---------------------------------------")
-        print("")
+        logger.info("")
+        logger.info("---------------------------------------")
+        logger.info("Current description is :\n %s" % issue.description)
+        logger.info("---------------------------------------")
+        logger.info("")
         self._set_argument_or_ignore(
             args,
             "description",
@@ -203,7 +212,7 @@ class Org:
             "\nplus\n", "\n%s\n" % issue.description
         )
         self.redmine.updateIssueFromDict(kwargs["issue"], args)
-        print("Issue %s updated" % str(kwargs["issue"]))
+        logger.info("Issue %s updated" % str(kwargs["issue"]))
 
     def set_issue_status(self, **kwargs):
         if kwargs["status"] is None:
@@ -211,7 +220,7 @@ class Org:
         if kwargs["status"] not in settings.STATUSES.values():
             raise Exception(f"Status must be in {', '.join(settings.STATUSES.values())}")
         self.redmine.updateIssueFromDict(kwargs["issue"], status_id=settings.STATUSES_REVERSED[kwargs["status"]])
-        print("Issue status changed to " + kwargs["status"])
+        logger.info("Issue status changed to " + kwargs["status"])
 
     def _process_template(self, template_filename, **kwargs):
         f = open(os.path.join(self.template_folder, template_filename))
@@ -264,7 +273,7 @@ class Org:
     #         return
 
     #     self.redmine.deleteIssue(kwargs["issue"])
-    #     print("Issue %s deleted" % str(kwargs["issue"]))
+    #     logger.info("Issue %s deleted" % str(kwargs["issue"]))
 
     def add_issue_journal(self, **kwargs):
         if kwargs["issue"] is None:
@@ -278,15 +287,15 @@ class Org:
             args["status_id"] = settings.STATUSES_REVERSED[kwargs["status"]]
 
         if kwargs["branch"]:
-            args["custom_field_values"] = {"0": "","1": "","2": "", "3": kwargs["branch"]}
+            args["custom_fields"] = [{"value":kwargs["branch"], "name":"Branch", "id": 3}]
+            # args["branch"] = kwargs["branch"]
         if kwargs["assignee"]:    
             if kwargs["assignee"] not in settings.USERS.values():
                 raise Exception(f"Status must be in {', '.join(settings.USERS.values())}")
             args["assigned_to_id"] = settings.USERS_REVERSED[kwargs["assignee"]]
-        print(kwargs["issue"], args)
-        # self.redmine.update_issue_json(kwargs["issue"], args)
-        self.redmine.updateIssueFromDict(kwargs["issue"], **args)
-        print("Issue journal entry created for %s" % str(kwargs["issue"]))
+        logger.info(kwargs["issue"], args)
+        self.redmine.update_issue_with_json(kwargs["issue"], **args)
+        logger.info("Issue journal entry created for %s" % str(kwargs["issue"]))
 
 
 
