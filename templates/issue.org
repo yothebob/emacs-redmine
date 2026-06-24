@@ -21,7 +21,7 @@ ${issue.description}
 {% if issue.attachments %}
 ** Files
 {% for attachment in issue.attachments %}
-[[${attachment.url}]] ${attachment.author} ${attachment.created_on}
+[[elisp:(eww "${attachment.url}?key=${key}")]] ${attachment.author} ${attachment.created_on}
 {% end %}
 {% end %}
 ** Journals
