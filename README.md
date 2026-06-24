@@ -41,6 +41,7 @@ Then add one or more functions to .emacs for each project you want to access, fo
     (defun redmine-my-project ()
       (interactive)
       (setq redmine-program "/path/to/emacs-redmine/redmine.py")
+      (setq redmine-path "/path/to/emacs-redmine")
       (setq redmine-project-name "my-project")
       (setq redmine-login-key "myuniquekey##XX##XX")
       (setq redmine-url "http://www.somewhere.com/redmine")

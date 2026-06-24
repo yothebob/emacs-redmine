@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     handlers=[
-        logging.FileHandler("logs/redmine_api.log"),
+        logging.FileHandler(f"{settings.PROJECT_PATH}/logs/redmine_api.log"),
         logging.StreamHandler()
     ]
 )

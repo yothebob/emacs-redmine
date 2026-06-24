@@ -1,12 +1,16 @@
 # Database IDs for statuses
 import logging
+import subprocess
 import json
+
+project_path_cmd = subprocess.run(["emacsclient", "-e", "(message redmine-path)"], capture_output=True)
+PROJECT_PATH = project_path_cmd.stdout.decode("utf8").replace("\"","").replace("\n", "")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     handlers=[
-        logging.FileHandler("logs/settings.log"),
+        logging.FileHandler(f"{PROJECT_PATH}/logs/settings.log"),
         logging.StreamHandler()
     ]
 )
@@ -18,7 +22,7 @@ USERS_REVERSED = {}
 URL = ""
 
 try:
-    with open('config.json', 'r', encoding='utf-8') as file:
+    with open(f"{PROJECT_PATH}/config.json", 'r', encoding='utf-8') as file:
         data = json.load(file)
         STATUSES = {int(k) : v for k, v in data.get("STATUSES", STATUSES).items()}
         USERS = {int(k) : v for k, v in data.get("USERS", USERS).items()}

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     handlers=[
-        logging.FileHandler("logs/redmine.log"),
+        logging.FileHandler(f"{settings.PROJECT_PATH}/logs/redmine.log"),
         logging.StreamHandler()
     ]
 )
@@ -158,7 +158,7 @@ class Org:
         
     def issue(self, **kwargs):
         issue = self.redmine.getIssue(kwargs["issue"])
-        logger.info(self._process_template("issue.org", issue=issue))
+        logger.info(self._process_template("issue.org", issue=issue, key=self.redmine.key))
 
     def new_issue(self, **kwargs):
 

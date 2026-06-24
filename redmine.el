@@ -23,6 +23,11 @@
   :type 'string
   :group 'redmine)
 
+(defcustom redmine-path ""
+  "Redmine path location (the location of the emacs-redmine folder)"
+  :type 'string
+  :group 'redmine)
+
 (defconst redmine-sprint-id-regex "^[^:]*:\\([^:]*\\):.*$"
   "Regex for sprint id.")
 
