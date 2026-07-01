@@ -31,12 +31,12 @@ class Org:
 
     def get_setting_statuses(self, **kwargs):
         res = "(setq *API-REDMINE-STATUSES* '("+ " ".join([f"( \"{name}\" . {_id})" for _id, name in settings.STATUSES.items()]) + "))"
-        logger.info(res)
+        print(res)
         return res
 
     def get_setting_users(self, **kwargs):
         res = "(setq *ASSIGNEE* '("+ " ".join([f"( \"{name}\" . {_id})" for _id, name in settings.USERS.items()]) + "))"
-        logger.info(res)
+        print(res)
         return res
 
     def test_function(self, **kwargs):
@@ -54,7 +54,7 @@ class Org:
         for sprint in sprints:
             sprint.issues = self.redmine.findIssues(
                 get_all_info=True,
-                project_id=kwargs["redmine_project"],
+                project_id=kwargs["project"],
                 include="journals",
                 sort="position",
                 tracker_id=settings.TRACKER_SPRINT,
@@ -84,7 +84,7 @@ class Org:
 
         sprint.issues = self.redmine.findIssues(
             get_all_info=True,
-            project_id=kwargs["redmine_project"],
+            project_id=kwargs["project"],
             include="journals",
             sort="position",
             tracker_id=settings.TRACKER_SPRINT,
@@ -126,22 +126,18 @@ class Org:
         """get_all_info=True is much slower since it makes an
         additional api call for each issue, only use it if you want
         each issue in full."""
-        issues_per_page = 100
+        issues_per_page = 25
         offset = issues_per_page * (kwargs["page"] - 1)
-        if kwargs["sprint"] is None:
-            raise Exception("sprint must be specified")
         issues = self.redmine.findIssues(
             get_all_info=False,
-            project_id=args.redmine_project,
+            project_id=args.project,
             include="journals",
             sort="position",
-            tracker_id=settings.TRACKER_SPRINT,
-            fixed_version_id=kwargs["sprint"],
             status_id="*",
             limit=issues_per_page,
             offset=offset,
         )
-        logger.info(self._process_template("issues.org", sprint=kwargs["sprint"], issues=issues))
+        logger.info(self._process_template("issues.org", sprint=kwargs.get("sprint", "NA"), issues=issues))
 
     def assigned_to_me(self, **kwargs):
         issues_per_page = 100
@@ -334,7 +330,6 @@ if __name__ == "__main__":
         dest="sprint",
         type=str,
         required=False,
-        default=None,
         help="The sprint id, used for some actions",
     )
     parser.add_argument(
@@ -405,9 +400,10 @@ if __name__ == "__main__":
         # "time-sheet" : org.time_sheet,
         # "delete-issue" : org.delete_issue(args.issue)
         "add-issue-journal" : org.add_issue_journal,
-        # "sprints" : org.sprints(args.redmine_project)
+        # "sprints" : org.sprints(args.project)
         "set-issue-status" : org.set_issue_status
     }
     if args.action not in action_to_func_map.keys():
         raise Exception("Unknown action : " + args.action)
+    logger.info(args)
     action_to_func_map[args.action](**vars(args))

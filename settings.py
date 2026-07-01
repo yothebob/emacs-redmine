@@ -3,8 +3,8 @@ import logging
 import subprocess
 import json
 
-project_path_cmd = subprocess.run(["emacsclient", "-e", "(message redmine-path)"], capture_output=True)
-PROJECT_PATH = project_path_cmd.stdout.decode("utf8").replace("\"","").replace("\n", "")
+# project_path_cmd = subprocess.run(["emacsclient", "-e", "(message redmine-path)"], capture_output=True)
+PROJECT_PATH = ""# project_path_cmd.stdout.decode("utf8").replace("\"","").replace("\n", "")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

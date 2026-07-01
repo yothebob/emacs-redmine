@@ -40,8 +40,55 @@
 (defvar *API-REDMINE-STATUSES* '())
 (defvar *ASSIGNEE* '())
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(require 'vui)
 
+(vui-defcomponent redmine--pick-project-component (projects)
+  :state ((project-name redmine-project-name))
+  :render
+  (vui-vstack
+   (vui-list (mapcar #'identity projects)
+	     (lambda (project)
+	       (vui-hstack
+		(vui-checkbox :checked (string-equal project-name (alist-get 'identifier project)))
+		(vui-button "Select"
+		  :on-click (lambda ()
+			      (setq redmine-project-name (alist-get 'identifier project))
+			      (vui-set-state :project-name (alist-get 'identifier project))))
+		
+		(vui-text (alist-get 'name project))
+		(vui-newline))))))
+
+(defun redmine-pick-project--render(projects)
+  (vui-mount
+   (vui-component 'redmine--pick-project-component :projects projects)
+   "*redmine-pick-project*"))
+
+(defun redmine-pick-project ()
+  (interactive)
+  (let ((buffer (generate-new-buffer "*redmine-process*")))
+    (make-process
+   :name "redmine"
+   :buffer buffer
+   :command (list "curl"
+                  "-s"
+                  (format "%sprojects.json?key=%s" redmine-url redmine-login-key))
+   :noquery t
+   :sentinel
+   (lambda (process _event)
+     (when (eq (process-status process) 'exit)
+       (with-current-buffer (process-buffer process)
+	 
+         (goto-char (point-min))
+         (let ((json-object-type 'alist)
+               (json-array-type 'list)
+               (json-key-type 'symbol))
+           (condition-case err
+		 (redmine-pick-project--render (alist-get 'projects (json-read)))
+             (error
+              (message "JSON parse error: %s" err)))))
+       (kill-buffer (process-buffer process)))))))
+
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Commands
 
 (global-set-key (kbd "C-c r i") 'redmine-get-issue)
@@ -54,20 +101,35 @@
 ;; (global-set-key (kbd "C-c r b") 'ets-timesheet-make-branchname)
 ;; (global-set-key (kbd "C-c r c") 'ets-timesheet-current-ticket-chili)
 
-
-
 ;; TODO: we need a show open issues for a given project
-;; TODO: we need a show open issues assigned to me
-;; TODO: it would be nice to have a function to just update a ticket (by entered issue id)
-;; TODO: impl better UI and coloring UI
+
+;; (defun redmine-show-activity () ;; TODO: this does not work, it would be cool if it did
+;;   (interactive)
+;;   (eww (format "%s/activity?key=%s" redmine-url redmine-login-key)))
+
+;; (defun redmine-show-project-wiki (project) ;; TODO: I think this works?
+;;   (interactive "MProject: ")
+;;   (eww (format "%s/%s/wiki?key=%s" redmine-url project redmine-login-key)))
 
 (defun redmine-get-issue (&optional issue-id)
   (interactive)
   (if (not issue-id)
-      (let* ((current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
-	     (issue-id (read-string "Ticket: " (gethash "ticket" current-ticket))))
+      (let*
+	  (($p1 0) ($p2 0)
+	   (current-ticket (car (sort *ets-clockin-records* '(lambda (j i) (< (or (gethash "start" i) 0) (or (gethash "start" j) 0))))))
+	   (res-str (if (use-region-p)
+			(progn
+			  (setq $p1 (region-beginning))
+			  (setq $p2 (region-end))
+			  (setq mark-active nil)
+			  (when (< $p1 (point))
+			    (goto-char $p1))
+			  (buffer-substring-no-properties $p1 $p2)) nil))
+	       (issue-id (read-string "Ticket: " (if res-str res-str (gethash "ticket" current-ticket)))))
+	(message issue-id) 
+	
 	(redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t))
-    (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t)))
+    (progn (message issue-id) (redmine-call-process "issue" (concat "--issue " issue-id) "pop" :orgmode t))))
 
 (defun redmine-get-timesheet-issue ()
   (interactive)
@@ -87,13 +149,10 @@
 (defun redmine-get-issue-id ()
   (or (redmine-extract-thing-at-point redmine-issue-id-regex 1) (redmine-extract-thing-at-point redmine-task-id-regex 1)))
 
-(defun redmine-show-issues-in-sprint ()
+(defun redmine-show-project-issues (&optional page-num)
   (interactive)
-  (let ((sprint-id nil))
-    (setq redmine-sprint-id (redmine-get-sprint-id))
-    (if redmine-sprint-id
-      (redmine-call-process "issues" (concat "--sprint " redmine-sprint-id) "pop")
-      (error "Sprint id not found"))))
+  (let ((page-num (if page-num page-num 1)))
+      (redmine-call-process "issues" (concat "--page " (number-to-string page-num)) "pop" :orgmode t)))
 
 (defun redmine-show-issues-in-sprint-page2 ()
   (interactive)
@@ -117,7 +176,7 @@
   (interactive "MTicket: ")
   (let* ((new-status (completing-read "Status: " (mapcar '(lambda (x) (nth 0 x)) *API-REDMINE-STATUSES*))))
     (if issue-id
-	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "switch")
+	(redmine-call-process "set-issue-status" (concat "--issue " issue-id " --status " (format "%S" new-status)) "kill")
       (error "Issue id not found"))))
 
 (defun redmine-assigned-to-me ()
@@ -132,7 +191,7 @@
 	(branch (read-string "Branch: ")))
     (if issue-id
 	(redmine-call-process "add-issue-journal"
-			      (concat "--issue " issue-id " --note " (format "%S" note) " --status " (format "%S" new-status) " --branch " (format "%S" branch) " --assignee " (format "%S" new-assignee)) "pop")
+			      (concat "--issue " issue-id " --note " (format "%S" note) " --status " (format "%S" new-status) " --branch " (format "%S" branch) " --assignee " (format "%S" new-assignee)) "kill")
       (error "Issue id not found"))))
 
 (defun redmine--statuses ()
@@ -401,7 +460,7 @@
 
 (cl-defun redmine-call-process (command &optional arg popup-flag &key (orgmode nil))
   "Call redmine process asynchronously according with sub-commands."
-  (let* ((buffer (get-buffer-create (format "*redmine-%s%s%s*" command (if orgmode "-orgmode" "") (if orgmode arg ""))))
+  (let* ((buffer (get-buffer-create (format "*redmine-%s%s%s*" command (if orgmode "-orgmode" "") (if orgmode arg "") (if (string= popup-flag "kill") "kill" ""))))
          (proc (get-buffer-process buffer)))
     (if (and proc (eq (process-status proc) 'run))
         (when (y-or-n-p (format "A %s process is running; kill it?"
@@ -446,11 +505,12 @@
         (when (string= signal "finished\n")
           (with-current-buffer (process-buffer process)
 	    (message (buffer-name (current-buffer)))
+	    
 	    (if (cl-search "orgmode" (buffer-name (current-buffer)))
 		(progn (org-mode) (visual-line-mode))
 	      (redmine-mode))
 	    (goto-char (point-min))
-	    ;; (and redmine-prev-line-number (goto-line redmine-prev-line-number))
+	    (if (cl-search "kill" (buffer-name (current-buffer))) (kill-buffer buffer))
 	    )))))))
 
 (defvar redmine-last-visited-issue-directory nil)
