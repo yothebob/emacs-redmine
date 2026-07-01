@@ -405,5 +405,4 @@ if __name__ == "__main__":
     }
     if args.action not in action_to_func_map.keys():
         raise Exception("Unknown action : " + args.action)
-    logger.info(args)
     action_to_func_map[args.action](**vars(args))
